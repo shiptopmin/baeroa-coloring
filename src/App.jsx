@@ -13,6 +13,7 @@ export default function App() {
   const [brushType, setBrushType] = useState('rainbow');
   const [mirrorMode, setMirrorMode] = useState(false);
   const [coloringPage, setColoringPage] = useState(null);
+  const [selectedStamp, setSelectedStamp] = useState('⭐');
   const [praiseVisible, setPraiseVisible] = useState(false);
 
   const canvasRef = useRef(null);
@@ -36,30 +37,26 @@ export default function App() {
   }, [vibrate]);
 
   return (
-    // AnimatePresence must have motion.* as direct children to detect exit properly
     <AnimatePresence mode="wait">
       {!started ? (
-        <motion.div
-          key="start"
-          className="absolute inset-0"
+        <motion.div key="start" className="absolute inset-0"
           exit={{ opacity: 0, scale: 1.06 }}
-          transition={{ duration: 0.3, ease: 'easeIn' }}
-        >
+          transition={{ duration: 0.3, ease: 'easeIn' }}>
           <StartScreen onStart={handleStart} />
         </motion.div>
       ) : (
-        <motion.div
-          key="app"
+        <motion.div key="app"
           className="flex absolute inset-0 overflow-hidden bg-gradient-to-br from-pink-100 via-purple-50 to-blue-100 font-cute"
           initial={{ opacity: 0, scale: 0.97 }}
           animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.35, ease: 'easeOut' }}
-        >
+          transition={{ duration: 0.35, ease: 'easeOut' }}>
+
           <Toolbar
             color={color} setColor={setColor}
             brushType={brushType} setBrushType={setBrushType}
             mirrorMode={mirrorMode} setMirrorMode={setMirrorMode}
             coloringPage={coloringPage} setColoringPage={setColoringPage}
+            selectedStamp={selectedStamp} setSelectedStamp={setSelectedStamp}
             onSave={handleSave}
             onClear={handleClear}
           />
@@ -77,6 +74,7 @@ export default function App() {
               brushType={brushType}
               mirrorMode={mirrorMode}
               coloringPage={coloringPage}
+              selectedStamp={selectedStamp}
             />
           </div>
 

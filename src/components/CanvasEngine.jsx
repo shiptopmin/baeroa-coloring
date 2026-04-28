@@ -1,4 +1,5 @@
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { useSound } from '../hooks/useSound';
 import { useVibration } from '../hooks/useVibration';
 
@@ -49,7 +50,6 @@ const brushRainbow = (ctx, x, y, px, py, hueRef) => {
   ctx.stroke();
   ctx.restore();
 
-  // sparkle stars
   if (Math.random() < 0.35) {
     for (let i = 0; i < 2; i++) {
       const sx = x + (Math.random() - 0.5) * 32;
@@ -88,7 +88,6 @@ const brushCrayon = (ctx, x, y, px, py, color) => {
   ctx.globalCompositeOperation = 'multiply';
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
-  // 3 slightly offset strokes for waxy texture
   for (let i = -1; i <= 1; i++) {
     ctx.beginPath();
     ctx.moveTo(px + i * 2.5, py + i * 1.5);
@@ -97,7 +96,6 @@ const brushCrayon = (ctx, x, y, px, py, color) => {
     ctx.lineWidth = 18 - Math.abs(i) * 4;
     ctx.stroke();
   }
-  // grain texture dots
   const steps = Math.max(1, Math.ceil(Math.hypot(x - px, y - py) / 4));
   for (let s = 0; s < steps; s++) {
     const t = s / steps;
@@ -113,76 +111,113 @@ const brushCrayon = (ctx, x, y, px, py, color) => {
   ctx.restore();
 };
 
-// ─── component ────────────────────────────────────────────────────────────────
+// ─── constants ────────────────────────────────────────────────────────────────
 
 const CANVAS_W = 1600;
 const CANVAS_H = 900;
+const STAMP_SIZE = 88; // emoji size in canvas pixels
 
-export const CanvasEngine = forwardRef(({ color, brushType, mirrorMode, coloringPage }, ref) => {
-  const canvasRef = useRef(null);      // drawing layer
-  const overlayRef = useRef(null);     // coloring page outlines on top
+// ─── component ────────────────────────────────────────────────────────────────
+
+export const CanvasEngine = forwardRef(({ color, brushType, mirrorMode, coloringPage, selectedStamp }, ref) => {
+  const canvasRef = useRef(null);
   const drawing = useRef(false);
   const last = useRef(null);
+  const stampStart = useRef(null);
   const hueRef = useRef(0);
-  const bgImageRef = useRef(null);
+  const coloringPageRef = useRef(null);
+  const [pops, setPops] = useState([]);
+
   const { playDraw } = useSound();
   const vibrate = useVibration();
 
-  // expose save() and clear() to parent
-  useImperativeHandle(ref, () => ({
-    save() {
-      const out = document.createElement('canvas');
-      out.width = CANVAS_W;
-      out.height = CANVAS_H;
-      const oc = out.getContext('2d');
-      oc.fillStyle = '#fff';
-      oc.fillRect(0, 0, CANVAS_W, CANVAS_H);
-      oc.drawImage(canvasRef.current, 0, 0);
-      if (bgImageRef.current) oc.drawImage(overlayRef.current, 0, 0);
-      const link = document.createElement('a');
-      link.download = `my-art-${Date.now()}.png`;
-      link.href = out.toDataURL('image/png');
-      link.click();
-    },
-    clear() {
-      const ctx = canvasRef.current.getContext('2d');
-      ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
-      ctx.fillStyle = '#fff';
-      ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
-    },
-  }));
+  // ── coloring page ─────────────────────────────────────────────────────────
 
-  // draw coloring page outline on the overlay canvas
-  useEffect(() => {
-    const canvas = overlayRef.current;
+  const drawPageOnCanvas = useCallback((page) => {
+    if (!page) return;
+    const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
 
-    if (!coloringPage) {
-      bgImageRef.current = null;
-      return;
-    }
     const img = new Image();
     img.onload = () => {
-      bgImageRef.current = img;
-      // center the SVG on the canvas
-      const aspect = img.naturalWidth / img.naturalHeight || 1;
-      let dw = CANVAS_W * 0.7;
+      // SVG reports 0 for naturalWidth/Height in some browsers when using data URL
+      // Use the viewBox aspect from the SVG src string instead
+      const vwMatch = page.src.match(/viewBox%3D%220%200%20([\d.]+)%20([\d.]+)%22/);
+      const aspect = vwMatch
+        ? parseFloat(vwMatch[1]) / parseFloat(vwMatch[2])
+        : (img.naturalWidth || 400) / (img.naturalHeight || 500);
+
+      let dw = CANVAS_W * 0.76;
       let dh = dw / aspect;
-      if (dh > CANVAS_H * 0.85) { dh = CANVAS_H * 0.85; dw = dh * aspect; }
+      if (dh > CANVAS_H * 0.9) { dh = CANVAS_H * 0.9; dw = dh * aspect; }
       const dx = (CANVAS_W - dw) / 2;
       const dy = (CANVAS_H - dh) / 2;
+
       ctx.drawImage(img, dx, dy, dw, dh);
     };
-    img.src = coloringPage.src;
-  }, [coloringPage]);
+    img.onerror = () => console.warn('SVG load failed for', page.id);
+    img.src = page.src;
+  }, []);
 
-  // init drawing canvas
+  // Init white canvas
   useEffect(() => {
     const ctx = canvasRef.current.getContext('2d');
     ctx.fillStyle = '#fff';
     ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
   }, []);
+
+  // When coloring page changes, reset canvas and draw new page
+  useEffect(() => {
+    coloringPageRef.current = coloringPage;
+    const ctx = canvasRef.current.getContext('2d');
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+    if (coloringPage) drawPageOnCanvas(coloringPage);
+  }, [coloringPage, drawPageOnCanvas]);
+
+  // ── imperative API ────────────────────────────────────────────────────────
+
+  useImperativeHandle(ref, () => ({
+    save() {
+      const link = document.createElement('a');
+      link.download = `baeroa-art-${Date.now()}.png`;
+      link.href = canvasRef.current.toDataURL('image/png');
+      link.click();
+    },
+    clear() {
+      const ctx = canvasRef.current.getContext('2d');
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+      if (coloringPageRef.current) drawPageOnCanvas(coloringPageRef.current);
+    },
+  }), [drawPageOnCanvas]);
+
+  // ── stamp ─────────────────────────────────────────────────────────────────
+
+  const addPop = useCallback((canvasX, canvasY, emoji) => {
+    const rect = canvasRef.current.getBoundingClientRect();
+    const screenX = (canvasX / CANVAS_W) * rect.width;
+    const screenY = (canvasY / CANVAS_H) * rect.height;
+    const id = Date.now() + Math.random();
+    setPops(prev => [...prev, { id, x: screenX, y: screenY, emoji }]);
+    setTimeout(() => setPops(prev => prev.filter(p => p.id !== id)), 900);
+  }, []);
+
+  const placeStamp = useCallback((x, y) => {
+    const emoji = selectedStamp || '⭐';
+    const ctx = canvasRef.current.getContext('2d');
+    ctx.save();
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.font = `${STAMP_SIZE}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(emoji, x, y);
+    ctx.restore();
+    addPop(x, y, emoji);
+    vibrate([20, 10, 30]);
+  }, [selectedStamp, addPop, vibrate]);
+
+  // ── brush drawing ─────────────────────────────────────────────────────────
 
   const draw = useCallback((x, y) => {
     const canvas = canvasRef.current;
@@ -196,65 +231,95 @@ export const CanvasEngine = forwardRef(({ color, brushType, mirrorMode, coloring
     };
 
     render(x, y, p.x, p.y);
-
-    if (mirrorMode) {
-      // mirror across vertical centre
-      render(CANVAS_W - x, y, CANVAS_W - p.x, p.y);
-    }
+    if (mirrorMode) render(CANVAS_W - x, y, CANVAS_W - p.x, p.y);
 
     last.current = { x, y };
     playDraw(brushType);
     vibrate(5);
   }, [brushType, color, mirrorMode, playDraw, vibrate]);
 
+  // ── pointer events ────────────────────────────────────────────────────────
+
   const onStart = useCallback((e) => {
     e.preventDefault();
-    drawing.current = true;
     const { x, y } = getCoords(canvasRef.current, e);
+
+    if (brushType === 'stamp') {
+      stampStart.current = { x, y };
+      return;
+    }
+
+    drawing.current = true;
     last.current = { x, y };
     draw(x, y);
-  }, [draw]);
+  }, [brushType, draw]);
 
   const onMove = useCallback((e) => {
     e.preventDefault();
+    if (brushType === 'stamp') return;
     if (!drawing.current) return;
     const { x, y } = getCoords(canvasRef.current, e);
     draw(x, y);
-  }, [draw]);
+  }, [brushType, draw]);
 
-  const onEnd = useCallback(() => {
+  const onEnd = useCallback((e) => {
+    if (brushType === 'stamp') {
+      if (!stampStart.current) return;
+      try {
+        const { x, y } = getCoords(canvasRef.current, e);
+        const dist = Math.hypot(x - stampStart.current.x, y - stampStart.current.y);
+        if (dist < 30) placeStamp(x, y);
+      } catch (_) {}
+      stampStart.current = null;
+      return;
+    }
+    drawing.current = false;
+    last.current = null;
+  }, [brushType, placeStamp]);
+
+  const onCancel = useCallback(() => {
+    stampStart.current = null;
     drawing.current = false;
     last.current = null;
   }, []);
 
+  // ── render ────────────────────────────────────────────────────────────────
+
   return (
-    <div className="relative w-full h-full">
-      {/* Mirror line indicator */}
+    <div className="relative w-full h-full overflow-hidden">
       {mirrorMode && (
         <div className="absolute inset-y-0 left-1/2 -translate-x-px w-0.5 bg-pink-400/40 pointer-events-none z-10" />
       )}
 
-      {/* Drawing canvas (bottom) */}
       <canvas
         ref={canvasRef}
         width={CANVAS_W}
         height={CANVAS_H}
         className="absolute inset-0 w-full h-full touch-none"
-        style={{ cursor: 'crosshair' }}
+        style={{ cursor: brushType === 'stamp' ? 'pointer' : 'crosshair' }}
         onPointerDown={onStart}
         onPointerMove={onMove}
         onPointerUp={onEnd}
-        onPointerLeave={onEnd}
-        onPointerCancel={onEnd}
+        onPointerLeave={onCancel}
+        onPointerCancel={onCancel}
       />
 
-      {/* Coloring page overlay (top, pointer-events none) */}
-      <canvas
-        ref={overlayRef}
-        width={CANVAS_W}
-        height={CANVAS_H}
-        className="absolute inset-0 w-full h-full pointer-events-none"
-      />
+      {/* Stamp pop animations */}
+      <AnimatePresence>
+        {pops.map(pop => (
+          <motion.div
+            key={pop.id}
+            className="absolute pointer-events-none select-none z-20"
+            style={{ left: pop.x, top: pop.y, fontSize: 56, lineHeight: 1 }}
+            initial={{ scale: 0.2, x: '-50%', y: '-50%', opacity: 1 }}
+            animate={{ scale: 2.8, x: '-50%', y: '-120%', opacity: 0 }}
+            exit={{}}
+            transition={{ duration: 0.65, ease: [0.22, 1.5, 0.36, 1] }}
+          >
+            {pop.emoji}
+          </motion.div>
+        ))}
+      </AnimatePresence>
     </div>
   );
 });
