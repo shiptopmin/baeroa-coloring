@@ -267,8 +267,9 @@ export const CanvasEngine = forwardRef(({ color, brushType, mirrorMode, coloring
       if (!stampStart.current) return;
       try {
         const { x, y } = getCoords(canvasRef.current, e);
+        // Use 80 canvas-px threshold (≈ 35 screen-px on typical tablet)
         const dist = Math.hypot(x - stampStart.current.x, y - stampStart.current.y);
-        if (dist < 30) placeStamp(x, y);
+        if (dist < 80) placeStamp(x, y);
       } catch (_) {}
       stampStart.current = null;
       return;
@@ -277,6 +278,15 @@ export const CanvasEngine = forwardRef(({ color, brushType, mirrorMode, coloring
     last.current = null;
   }, [brushType, placeStamp]);
 
+  // pointerleave: stop DRAWING only — do NOT clear stampStart.
+  // On mobile, pointerleave can fire before pointerup when finger lifts,
+  // so we must let pointerup handle stamp placement.
+  const onLeave = useCallback(() => {
+    drawing.current = false;
+    last.current = null;
+  }, []);
+
+  // pointercancel: hard cancel (e.g. system interruption) — clear everything.
   const onCancel = useCallback(() => {
     stampStart.current = null;
     drawing.current = false;
@@ -300,7 +310,7 @@ export const CanvasEngine = forwardRef(({ color, brushType, mirrorMode, coloring
         onPointerDown={onStart}
         onPointerMove={onMove}
         onPointerUp={onEnd}
-        onPointerLeave={onCancel}
+        onPointerLeave={onLeave}
         onPointerCancel={onCancel}
       />
 

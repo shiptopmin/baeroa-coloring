@@ -236,48 +236,46 @@ export const Toolbar = ({
           transition={{ repeat: Infinity, duration: 1.2 }}>🪞</motion.span>
       </ToolBtn>
 
-      {/* Coloring page selector */}
-      <div className="relative">
-        <ToolBtn emoji="📖" label="색칠판" active={!!coloringPage || showPages}
-          onClick={() => setShowPages(v => !v)} />
+      {/* Coloring page selector — inline expansion (no popup, avoids overflow-x clipping on mobile) */}
+      <ToolBtn emoji="📖" label="색칠판" active={!!coloringPage || showPages}
+        onClick={() => setShowPages(v => !v)} />
 
-        <AnimatePresence>
-          {showPages && (
-            <motion.div
-              className="absolute left-full ml-2 top-0 bg-white rounded-2xl shadow-2xl border-2 border-pink-200 p-2 z-50"
-              style={{ width: 210 }}
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -10 }}
-            >
-              <p className="text-xs font-black text-pink-500 mb-2 text-center">밑그림 선택</p>
-              <div className="grid grid-cols-2 gap-2">
+      <AnimatePresence>
+        {showPages && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden"
+          >
+            <p className="text-[9px] font-black text-pink-400 text-center mt-0.5">밑그림</p>
+            <div className="flex flex-col gap-1 mt-1">
+              {/* No outline */}
+              <motion.button
+                className={`flex items-center gap-1.5 rounded-xl px-2 py-1.5 border-2 w-full
+                  ${!coloringPage ? 'border-pink-400 bg-pink-50' : 'border-gray-200 bg-white/60'}`}
+                whileTap={{ scale: 0.93 }}
+                onClick={() => { setColoringPage(null); setShowPages(false); }}
+              >
+                <span className="text-lg leading-none">✏️</span>
+                <span className="text-[10px] font-bold text-gray-600">자유롭게</span>
+              </motion.button>
+              {coloringPages.map(p => (
                 <motion.button
-                  className={`rounded-xl p-2 text-center border-2 font-bold
-                    ${!coloringPage ? 'border-pink-400 bg-pink-50' : 'border-gray-200 bg-gray-50'}`}
+                  key={p.id}
+                  className={`flex items-center gap-1.5 rounded-xl px-2 py-1.5 border-2 w-full
+                    ${coloringPage?.id === p.id ? 'border-pink-400 bg-pink-50' : 'border-gray-200 bg-white/60'}`}
                   whileTap={{ scale: 0.93 }}
-                  onClick={() => { setColoringPage(null); setShowPages(false); }}
+                  onClick={() => handlePage(p)}
                 >
-                  <div className="text-2xl mb-1">✏️</div>
-                  <div className="text-[10px] text-gray-600">자유롭게</div>
+                  <span className="text-lg leading-none">{p.emoji}</span>
+                  <span className="text-[10px] font-bold text-gray-600">{p.label}</span>
                 </motion.button>
-                {coloringPages.map(p => (
-                  <motion.button
-                    key={p.id}
-                    className={`rounded-xl p-2 text-center border-2 font-bold
-                      ${coloringPage?.id === p.id ? 'border-pink-400 bg-pink-50' : 'border-gray-200 bg-gray-50'}`}
-                    whileTap={{ scale: 0.93 }}
-                    onClick={() => handlePage(p)}
-                  >
-                    <div className="text-2xl mb-1">{p.emoji}</div>
-                    <div className="text-[10px] text-gray-600">{p.label}</div>
-                  </motion.button>
-                ))}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="flex-1" />
 
