@@ -155,7 +155,6 @@ export const CanvasEngine = forwardRef(({
   const canvasRef = useRef(null);
   const drawing = useRef(false);
   const last = useRef(null);
-  const stampStart = useRef(null);
   const hueRef = useRef(0);
   const coloringPageRef = useRef(null);
   const bgColorRef = useRef(bgColor);
@@ -314,7 +313,6 @@ export const CanvasEngine = forwardRef(({
     const { x, y } = getCoords(canvasRef.current, e);
 
     if (brushType === 'fill') {
-      // Flood fill on pointer down
       pushUndo();
       const ctx = canvasRef.current.getContext('2d');
       floodFill(ctx, x, y, color, CANVAS_W, CANVAS_H);
@@ -324,7 +322,8 @@ export const CanvasEngine = forwardRef(({
     }
 
     if (brushType === 'stamp') {
-      stampStart.current = { x, y };
+      // Place stamp immediately on touch/click — no start/end tracking needed
+      placeStamp(x, y);
       return;
     }
 
@@ -332,7 +331,7 @@ export const CanvasEngine = forwardRef(({
     drawing.current = true;
     last.current = { x, y };
     draw(x, y);
-  }, [brushType, color, draw, pushUndo, playFill, vibrate]);
+  }, [brushType, color, draw, pushUndo, playFill, placeStamp, vibrate]);
 
   const onMove = useCallback((e) => {
     e.preventDefault();
@@ -342,20 +341,11 @@ export const CanvasEngine = forwardRef(({
     draw(x, y);
   }, [brushType, draw]);
 
-  const onEnd = useCallback((e) => {
-    if (brushType === 'stamp') {
-      if (!stampStart.current) return;
-      try {
-        const { x, y } = getCoords(canvasRef.current, e);
-        const dist = Math.hypot(x - stampStart.current.x, y - stampStart.current.y);
-        if (dist < 80) placeStamp(x, y);
-      } catch (_) {}
-      stampStart.current = null;
-      return;
-    }
+  const onEnd = useCallback(() => {
+    if (brushType === 'stamp' || brushType === 'fill') return;
     drawing.current = false;
     last.current = null;
-  }, [brushType, placeStamp]);
+  }, [brushType]);
 
   const onLeave = useCallback(() => {
     drawing.current = false;
@@ -363,7 +353,6 @@ export const CanvasEngine = forwardRef(({
   }, []);
 
   const onCancel = useCallback(() => {
-    stampStart.current = null;
     drawing.current = false;
     last.current = null;
   }, []);

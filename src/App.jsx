@@ -23,6 +23,7 @@ export default function App() {
   const [showGallery, setShowGallery] = useState(false);
   const [toast, setToast] = useState('');
   const [orientation, setOrientation] = useState('landscape');
+  const [pendingPage, setPendingPage] = useState(null); // confirmation dialog
 
   const canvasRef = useRef(null);
   const toastTimerRef = useRef(null);
@@ -74,6 +75,19 @@ export default function App() {
     else showToast('더 이상 되돌릴 수 없어요');
   }, [showToast]);
 
+  const handlePageSelect = useCallback((page) => {
+    // Show confirmation dialog at App level (safe from transform containing blocks)
+    setPendingPage(page);
+  }, []);
+
+  const handlePageConfirm = useCallback(() => {
+    if (!pendingPage) return;
+    setColoringPage(prev => prev?.id === pendingPage.id ? null : pendingPage);
+    setPendingPage(null);
+    showToast(`${pendingPage.emoji} ${pendingPage.label} 밑그림이에요!`);
+    vibrate(25);
+  }, [pendingPage, showToast, vibrate]);
+
   const handleHome = useCallback(() => {
     setStarted(false);
     vibrate([20, 10, 40]);
@@ -113,6 +127,7 @@ export default function App() {
               onUndo={handleUndo}
               onHome={handleHome}
               onGallery={() => setShowGallery(true)}
+              onPageSelect={handlePageSelect}
             />
 
             <div className="flex-1 relative overflow-hidden">
@@ -166,6 +181,48 @@ export default function App() {
       <AnimatePresence>
         {showGallery && (
           <Gallery onClose={() => setShowGallery(false)} />
+        )}
+      </AnimatePresence>
+
+      {/* Coloring page confirmation dialog — at root level, no transform ancestors */}
+      <AnimatePresence>
+        {pendingPage && (
+          <motion.div
+            className="fixed inset-0 z-[400] flex items-center justify-center"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+          >
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+              onClick={() => setPendingPage(null)} />
+            <motion.div
+              className="relative bg-white rounded-3xl p-7 shadow-2xl border-4 border-pink-200 flex flex-col items-center gap-4 mx-4"
+              style={{ maxWidth: 340 }}
+              initial={{ scale: 0.82, y: 24 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.82, y: 24 }}
+              transition={{ type: 'spring', stiffness: 320, damping: 24 }}
+            >
+              <span className="text-5xl">{pendingPage.emoji}</span>
+              <p className="text-base font-black text-gray-700 text-center leading-relaxed">
+                <span className="text-pink-500">"{pendingPage.label}"</span> 밑그림으로 바꿀까요?<br />
+                <span className="text-sm font-bold text-red-400">지금 그림이 지워져요!</span>
+              </p>
+              <div className="flex gap-3 w-full">
+                <motion.button
+                  className="flex-1 py-3 rounded-2xl bg-gray-100 text-gray-600 font-black text-base border-2 border-gray-200"
+                  whileTap={{ scale: 0.92 }}
+                  onClick={() => setPendingPage(null)}
+                >취소</motion.button>
+                <motion.button
+                  className="flex-1 py-3 rounded-2xl bg-pink-400 text-white font-black text-base border-2 border-pink-500 shadow"
+                  whileTap={{ scale: 0.92 }}
+                  onClick={handlePageConfirm}
+                >바꿔요! 🎨</motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
 

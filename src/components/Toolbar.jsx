@@ -81,12 +81,11 @@ export const Toolbar = ({
   coloringPage, setColoringPage,
   selectedStamp, setSelectedStamp,
   bgColor, setBgColor,
-  onSave, onClear, onUndo, onHome, onGallery,
+  onSave, onClear, onUndo, onHome, onGallery, onPageSelect,
 }) => {
   const [showPages, setShowPages] = useState(false);
   const [showStamps, setShowStamps] = useState(false);
   const [showBgColors, setShowBgColors] = useState(false);
-  const [confirmPage, setConfirmPage] = useState(null);
 
   const { playColorSelect, playBrushChange, playMirrorToggle, playPageSelect, playClear, playHome } = useSound();
   const vibrate = useVibration();
@@ -110,17 +109,8 @@ export const Toolbar = ({
   };
 
   const handlePageRequest = (p) => {
-    // If canvas might have content (no way to know for sure), show confirm
-    setConfirmPage(p);
     setShowPages(false);
-  };
-
-  const handlePageConfirm = () => {
-    if (!confirmPage) return;
-    setColoringPage(coloringPage?.id === confirmPage.id ? null : confirmPage);
-    setConfirmPage(null);
-    playPageSelect();
-    vibrate(25);
+    onPageSelect(p);  // lift to App for confirmation dialog
   };
 
   const handleStamp = (s) => {
@@ -336,45 +326,6 @@ export const Toolbar = ({
         <span className="text-[9px] font-black text-red-400">초기화</span>
       </motion.button>
 
-      {/* Coloring page change confirmation dialog */}
-      <AnimatePresence>
-        {confirmPage && (
-          <motion.div
-            className="fixed inset-0 z-[250] flex items-center justify-center"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            <div className="absolute inset-0 bg-black/40" onClick={() => setConfirmPage(null)} />
-            <motion.div
-              className="relative bg-white rounded-3xl p-6 shadow-2xl border-4 border-pink-200 flex flex-col items-center gap-4 mx-4"
-              style={{ maxWidth: 320 }}
-              initial={{ scale: 0.85, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.85, y: 20 }}
-              transition={{ type: 'spring', stiffness: 300, damping: 24 }}
-            >
-              <span className="text-4xl">{confirmPage.emoji}</span>
-              <p className="text-base font-black text-gray-700 text-center">
-                "{confirmPage.label}" 밑그림으로 바꿀까요?<br />
-                <span className="text-sm font-bold text-red-400">지금 그림이 지워져요!</span>
-              </p>
-              <div className="flex gap-3 w-full">
-                <motion.button
-                  className="flex-1 py-2 rounded-2xl bg-gray-100 text-gray-600 font-black text-sm border-2 border-gray-200"
-                  whileTap={{ scale: 0.92 }}
-                  onClick={() => setConfirmPage(null)}
-                >취소</motion.button>
-                <motion.button
-                  className="flex-1 py-2 rounded-2xl bg-pink-400 text-white font-black text-sm border-2 border-pink-500"
-                  whileTap={{ scale: 0.92 }}
-                  onClick={handlePageConfirm}
-                >바꿔요!</motion.button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 };
