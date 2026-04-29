@@ -175,19 +175,23 @@ export const CanvasEngine = forwardRef(({
     const ctx = canvas.getContext('2d');
     const img = new Image();
     img.onload = () => {
-      const vwMatch = page.src.match(/viewBox%3D%220%200%20([\d.]+)%20([\d.]+)%22/);
-      const aspect = vwMatch
-        ? parseFloat(vwMatch[1]) / parseFloat(vwMatch[2])
-        : (img.naturalWidth || 400) / (img.naturalHeight || 500);
+      // For base64 SVGs: parse viewBox from the decoded SVG string
+      let aspect = 4 / 5; // default
+      try {
+        const decoded = atob(page.src.split(',')[1]);
+        const m = decoded.match(/viewBox="0 0 ([\d.]+) ([\d.]+)"/);
+        if (m) aspect = parseFloat(m[1]) / parseFloat(m[2]);
+        else if (img.naturalWidth && img.naturalHeight) aspect = img.naturalWidth / img.naturalHeight;
+      } catch {}
 
-      let dw = CANVAS_W * 0.76;
+      let dw = CANVAS_W * 0.82;
       let dh = dw / aspect;
-      if (dh > CANVAS_H * 0.9) { dh = CANVAS_H * 0.9; dw = dh * aspect; }
+      if (dh > CANVAS_H * 0.92) { dh = CANVAS_H * 0.92; dw = dh * aspect; }
       const dx = (CANVAS_W - dw) / 2;
       const dy = (CANVAS_H - dh) / 2;
       ctx.drawImage(img, dx, dy, dw, dh);
     };
-    img.onerror = () => console.warn('SVG load failed for', page.id);
+    img.onerror = (e) => console.warn('SVG load failed for', page.id, e);
     img.src = page.src;
   }, []);
 
@@ -218,11 +222,17 @@ export const CanvasEngine = forwardRef(({
   // ── undo helpers ──────────────────────────────────────────────────────────
 
   const pushUndo = useCallback(() => {
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    const snap = ctx.getImageData(0, 0, CANVAS_W, CANVAS_H);
-    undoStackRef.current.push(snap);
-    if (undoStackRef.current.length > MAX_UNDO) undoStackRef.current.shift();
+    // Wrapped in try-catch: getImageData can fail on low-memory mobile devices.
+    // A failed snapshot is not fatal — drawing/stamp still proceeds.
+    try {
+      const canvas = canvasRef.current;
+      const ctx = canvas.getContext('2d');
+      const snap = ctx.getImageData(0, 0, CANVAS_W, CANVAS_H);
+      undoStackRef.current.push(snap);
+      if (undoStackRef.current.length > MAX_UNDO) undoStackRef.current.shift();
+    } catch (e) {
+      console.warn('Undo snapshot failed (low memory?):', e);
+    }
   }, []);
 
   // ── imperative API ────────────────────────────────────────────────────────
@@ -267,18 +277,30 @@ export const CanvasEngine = forwardRef(({
 
   const placeStamp = useCallback((x, y) => {
     const emoji = selectedStamp || '⭐';
-    pushUndo();
-    const ctx = canvasRef.current.getContext('2d');
-    ctx.save();
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.font = `${STAMP_SIZE}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(emoji, x, y);
-    ctx.restore();
+    // Draw FIRST so stamp always appears, even if undo snapshot fails on mobile
+    try {
+      const ctx = canvasRef.current.getContext('2d');
+      ctx.save();
+      ctx.globalCompositeOperation = 'source-over';
+      // Use a temp canvas to pre-render emoji — more reliable on Android
+      const tmp = document.createElement('canvas');
+      tmp.width = STAMP_SIZE * 2;
+      tmp.height = STAMP_SIZE * 2;
+      const tc = tmp.getContext('2d');
+      tc.font = `${STAMP_SIZE * 1.5}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",serif`;
+      tc.textAlign = 'center';
+      tc.textBaseline = 'middle';
+      tc.fillText(emoji, STAMP_SIZE, STAMP_SIZE);
+      ctx.drawImage(tmp, x - STAMP_SIZE, y - STAMP_SIZE, STAMP_SIZE * 2, STAMP_SIZE * 2);
+      ctx.restore();
+    } catch (e) {
+      console.warn('Stamp draw failed:', e);
+    }
     addPop(x, y, emoji);
     playStamp();
     vibrate([20, 10, 30]);
+    // Save undo AFTER drawing (non-blocking)
+    pushUndo();
   }, [selectedStamp, addPop, pushUndo, playStamp, vibrate]);
 
   // ── brush drawing ─────────────────────────────────────────────────────────
@@ -327,10 +349,10 @@ export const CanvasEngine = forwardRef(({
       return;
     }
 
-    pushUndo();
     drawing.current = true;
     last.current = { x, y };
     draw(x, y);
+    pushUndo(); // after first point so drawing always starts
   }, [brushType, color, draw, pushUndo, playFill, placeStamp, vibrate]);
 
   const onMove = useCallback((e) => {

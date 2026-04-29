@@ -1,10 +1,11 @@
 // SVG coloring page line art — outline only, no fill, for kids to color in.
 // Canvas uses multiply blend so black lines are always preserved on top of any paint.
 
-const S = (content, vw = '400 500') =>
-  `data:image/svg+xml;charset=utf-8,${encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${vw}" fill="none" stroke="#222" stroke-linecap="round" stroke-linejoin="round">${content}</svg>`
-  )}`;
+// base64 encoding is more universally supported on mobile browsers than percent-encoding
+const S = (content, vw = '400 500') => {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${vw}" fill="none" stroke="#222" stroke-linecap="round" stroke-linejoin="round">${content}</svg>`;
+  return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
+};
 
 export const coloringPages = [
   {
