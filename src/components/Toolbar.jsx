@@ -1,4 +1,4 @@
-import { AnimatePresence, motion } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useState } from 'react';
 import { coloringPages } from '../utils/coloringPages';
 import { useSound } from '../hooks/useSound';
@@ -171,33 +171,25 @@ export const Toolbar = ({
         ))}
       </div>
 
-      {/* Stamp picker */}
-      <AnimatePresence>
-        {brushType === 'stamp' && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="overflow-hidden"
-          >
-            <p className="text-[9px] font-black text-purple-400 text-center mt-0.5">스탬프</p>
-            <div className="grid grid-cols-2 gap-1 mt-1">
-              {STAMPS.map(s => (
-                <motion.button
-                  key={s.id}
-                  className={`text-xl rounded-xl p-1 border-2 leading-none
-                    ${selectedStamp === s.emoji ? 'border-pink-400 bg-pink-100' : 'border-transparent bg-white/60'}`}
-                  whileTap={{ scale: 0.82 }}
-                  whileHover={{ scale: 1.15 }}
-                  onClick={() => handleStamp(s)}
-                >
-                  {s.emoji}
-                </motion.button>
-              ))}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Stamp picker — plain conditional render, no height animation (mobile-safe) */}
+      {brushType === 'stamp' && (
+        <div>
+          <p className="text-[9px] font-black text-purple-400 text-center mt-0.5">스탬프 선택</p>
+          <div className="grid grid-cols-2 gap-1 mt-1">
+            {STAMPS.map(s => (
+              <motion.button
+                key={s.id}
+                className={`text-2xl rounded-xl py-1.5 border-2 leading-none
+                  ${selectedStamp === s.emoji ? 'border-pink-400 bg-pink-100' : 'border-transparent bg-white/60'}`}
+                whileTap={{ scale: 0.82 }}
+                onClick={() => handleStamp(s)}
+              >
+                {s.emoji}
+              </motion.button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="border-t-2 border-pink-200 my-0.5" />
 
@@ -232,63 +224,51 @@ export const Toolbar = ({
       <ToolBtn emoji="📖" label="색칠판" active={!!coloringPage || showPages}
         onClick={() => setShowPages(v => !v)} />
 
-      <AnimatePresence>
-        {showPages && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="overflow-hidden"
-          >
-            <p className="text-[9px] font-black text-pink-400 text-center mt-0.5">밑그림</p>
-            <div className="flex flex-col gap-1 mt-1">
+      {/* Coloring page list — plain conditional render (mobile-safe) */}
+      {showPages && (
+        <div>
+          <p className="text-[9px] font-black text-pink-400 text-center mt-0.5">밑그림 선택</p>
+          <div className="flex flex-col gap-1 mt-1">
+            <motion.button
+              className={`flex items-center gap-1.5 rounded-xl px-2 py-1.5 border-2 w-full
+                ${!coloringPage ? 'border-pink-400 bg-pink-50' : 'border-gray-200 bg-white/60'}`}
+              whileTap={{ scale: 0.93 }}
+              onClick={() => { setColoringPage(null); setShowPages(false); }}
+            >
+              <span className="text-lg leading-none">✏️</span>
+              <span className="text-[10px] font-bold text-gray-600">자유롭게</span>
+            </motion.button>
+            {coloringPages.map(p => (
               <motion.button
+                key={p.id}
                 className={`flex items-center gap-1.5 rounded-xl px-2 py-1.5 border-2 w-full
-                  ${!coloringPage ? 'border-pink-400 bg-pink-50' : 'border-gray-200 bg-white/60'}`}
+                  ${coloringPage?.id === p.id ? 'border-pink-400 bg-pink-50' : 'border-gray-200 bg-white/60'}`}
                 whileTap={{ scale: 0.93 }}
-                onClick={() => { setColoringPage(null); setShowPages(false); }}
+                onClick={() => handlePageRequest(p)}
               >
-                <span className="text-lg leading-none">✏️</span>
-                <span className="text-[10px] font-bold text-gray-600">자유롭게</span>
+                <span className="text-lg leading-none">{p.emoji}</span>
+                <span className="text-[10px] font-bold text-gray-600">{p.label}</span>
               </motion.button>
-              {coloringPages.map(p => (
-                <motion.button
-                  key={p.id}
-                  className={`flex items-center gap-1.5 rounded-xl px-2 py-1.5 border-2 w-full
-                    ${coloringPage?.id === p.id ? 'border-pink-400 bg-pink-50' : 'border-gray-200 bg-white/60'}`}
-                  whileTap={{ scale: 0.93 }}
-                  onClick={() => handlePageRequest(p)}
-                >
-                  <span className="text-lg leading-none">{p.emoji}</span>
-                  <span className="text-[10px] font-bold text-gray-600">{p.label}</span>
-                </motion.button>
-              ))}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Background color */}
       <ToolBtn emoji="🎨" label="배경색" active={showBgColors} onClick={() => setShowBgColors(v => !v)} />
 
-      <AnimatePresence>
-        {showBgColors && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="overflow-hidden"
-          >
-            <p className="text-[9px] font-black text-pink-400 text-center mt-0.5">배경</p>
-            <div className="grid grid-cols-4 gap-1 mt-1 justify-items-center">
-              {BG_COLORS.map(c => (
-                <ColorSwatch key={c} c={c} size={18} selected={bgColor === c}
-                  onSelect={(col) => { setBgColor(col); vibrate(10); }} />
-              ))}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Background color — plain conditional render (mobile-safe) */}
+      {showBgColors && (
+        <div>
+          <p className="text-[9px] font-black text-pink-400 text-center mt-0.5">배경색 선택</p>
+          <div className="grid grid-cols-4 gap-1 mt-1 justify-items-center">
+            {BG_COLORS.map(c => (
+              <ColorSwatch key={c} c={c} size={18} selected={bgColor === c}
+                onSelect={(col) => { setBgColor(col); vibrate(10); }} />
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="flex-1" />
 
