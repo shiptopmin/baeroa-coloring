@@ -100,5 +100,47 @@ export const useSound = () => {
     tone(300 + Math.random() * 100, 'sine', 0.05, 0.08);
   }, []);
 
-  return { playDraw, playColorSelect, playBrushChange, playMirrorToggle, playPageSelect, playPraise, playClear, playLongPressProgress };
+  const playStamp = useCallback(() => {
+    // Cheerful "pop" sound
+    tone(880, 'sine', 0.12, 0.22);
+    tone(1320, 'sine', 0.18, 0.14, 0.05);
+  }, []);
+
+  const playFill = useCallback(() => {
+    // Satisfying "whoosh" fill sound
+    try {
+      const ac = ctx();
+      const osc = ac.createOscillator();
+      const g = ac.createGain();
+      osc.connect(g);
+      g.connect(ac.destination);
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(300, ac.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(800, ac.currentTime + 0.25);
+      g.gain.setValueAtTime(0.18, ac.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.35);
+      osc.start();
+      osc.stop(ac.currentTime + 0.35);
+    } catch {}
+  }, []);
+
+  const playUndo = useCallback(() => {
+    // Reverse blip
+    tone(600, 'sine', 0.1, 0.18);
+    tone(400, 'sine', 0.12, 0.14, 0.08);
+  }, []);
+
+  const playHome = useCallback(() => {
+    [659, 523].forEach((f, i) => tone(f, 'sine', 0.15, 0.2, i * 0.08));
+  }, []);
+
+  const playSave = useCallback(() => {
+    [523, 659, 784, 1047].forEach((f, i) => tone(f, 'sine', 0.18, 0.18, i * 0.07));
+  }, []);
+
+  return {
+    playDraw, playColorSelect, playBrushChange, playMirrorToggle,
+    playPageSelect, playPraise, playClear, playLongPressProgress,
+    playStamp, playFill, playUndo, playHome, playSave,
+  };
 };

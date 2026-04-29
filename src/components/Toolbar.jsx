@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { useCallback, useRef, useState } from 'react';
+import { useState } from 'react';
 import { coloringPages } from '../utils/coloringPages';
 import { useSound } from '../hooks/useSound';
 import { useVibration } from '../hooks/useVibration';
@@ -12,12 +12,21 @@ const COLORS = [
   '#40E0D0', '#F0E68C',
 ];
 
+const BG_COLORS = [
+  '#ffffff', '#FFF9E6', '#E8F5E9', '#E3F2FD',
+  '#FCE4EC', '#EDE7F6', '#FBE9E7', '#E0F7FA',
+];
+
 const BRUSHES = [
   { id: 'rainbow', label: '무지개', emoji: '🌈' },
   { id: 'cloud',   label: '구름',   emoji: '☁️' },
   { id: 'crayon',  label: '크레파스', emoji: '🖍️' },
+  { id: 'eraser',  label: '지우개', emoji: '⬜' },
+  { id: 'fill',    label: '채우기', emoji: '🪣' },
   { id: 'stamp',   label: '스탬프',  emoji: '🎯' },
 ];
+
+const SIZES = ['S', 'M', 'L', 'XL'];
 
 const STAMPS = [
   { id: 'star',    emoji: '⭐' },
@@ -32,17 +41,15 @@ const STAMPS = [
   { id: 'unicorn', emoji: '🦄' },
 ];
 
-const LONG_PRESS_MS = 3000;
-
 // ─── sub-components ───────────────────────────────────────────────────────────
 
-const ColorSwatch = ({ c, selected, onSelect }) => (
+const ColorSwatch = ({ c, selected, onSelect, size = 32 }) => (
   <motion.button
     className="rounded-full border-4 shadow-md flex-shrink-0"
     style={{
-      width: 36, height: 36,
+      width: size, height: size,
       background: c,
-      borderColor: selected ? '#FF6B9D' : c === '#FFFFFF' ? '#ddd' : c,
+      borderColor: selected ? '#FF6B9D' : c === '#FFFFFF' || c === '#ffffff' ? '#ddd' : c,
       boxShadow: selected ? '0 0 0 3px #FF6B9D' : undefined,
     }}
     whileTap={{ scale: 0.8 }}
@@ -64,84 +71,29 @@ const ToolBtn = ({ emoji, label, active, onClick, children }) => (
   </motion.button>
 );
 
-const ClearBtn = ({ onClear }) => {
-  const [progress, setProgress] = useState(0);
-  const startRef = useRef(null);
-  const rafRef = useRef(null);
-  const { playLongPressProgress, playClear } = useSound();
-  const vibrate = useVibration();
-
-  const startPress = useCallback((e) => {
-    e.preventDefault();
-    startRef.current = performance.now();
-    const tick = () => {
-      const p = Math.min((performance.now() - startRef.current) / LONG_PRESS_MS, 1);
-      setProgress(p);
-      if (p < 1) {
-        rafRef.current = requestAnimationFrame(tick);
-        if (Math.random() < 0.05) { playLongPressProgress(); vibrate(10); }
-      } else {
-        playClear(); vibrate([50, 30, 80]);
-        onClear();
-        setProgress(0);
-      }
-    };
-    rafRef.current = requestAnimationFrame(tick);
-  }, [onClear, playClear, playLongPressProgress, vibrate]);
-
-  const cancel = useCallback(() => {
-    cancelAnimationFrame(rafRef.current);
-    setProgress(0);
-  }, []);
-
-  const r = 16;
-  const circ = 2 * Math.PI * r;
-
-  return (
-    <motion.button
-      className="flex flex-col items-center justify-center rounded-2xl p-1.5 gap-0.5 w-full bg-white/70 shadow select-none"
-      style={{ WebkitUserSelect: 'none' }}
-      whileTap={{ scale: 0.92 }}
-      onPointerDown={startPress}
-      onPointerUp={cancel}
-      onPointerLeave={cancel}
-      onPointerCancel={cancel}
-    >
-      <div className="relative w-9 h-9">
-        <svg className="absolute inset-0 -rotate-90" viewBox="0 0 40 40">
-          <circle cx="20" cy="20" r={r} fill="none" stroke="#f3f4f6" strokeWidth="4"/>
-          <circle cx="20" cy="20" r={r} fill="none"
-            stroke={progress > 0 ? '#EF4444' : '#d1d5db'} strokeWidth="4"
-            strokeDasharray={circ} strokeDashoffset={circ * (1 - progress)}
-            strokeLinecap="round" style={{ transition: 'none' }}
-          />
-        </svg>
-        <span className="absolute inset-0 flex items-center justify-center text-xl">🗑️</span>
-      </div>
-      <span className="text-[9px] font-black text-red-400 leading-none">꾹 눌러!</span>
-    </motion.button>
-  );
-};
-
 // ─── main Toolbar ─────────────────────────────────────────────────────────────
 
 export const Toolbar = ({
   color, setColor,
   brushType, setBrushType,
+  brushSize, setBrushSize,
   mirrorMode, setMirrorMode,
   coloringPage, setColoringPage,
   selectedStamp, setSelectedStamp,
-  onSave, onClear,
+  bgColor, setBgColor,
+  onSave, onClear, onUndo, onHome, onGallery,
 }) => {
   const [showPages, setShowPages] = useState(false);
   const [showStamps, setShowStamps] = useState(false);
-  const { playColorSelect, playBrushChange, playMirrorToggle, playPageSelect } = useSound();
+  const [showBgColors, setShowBgColors] = useState(false);
+  const [confirmPage, setConfirmPage] = useState(null);
+
+  const { playColorSelect, playBrushChange, playMirrorToggle, playPageSelect, playClear, playHome } = useSound();
   const vibrate = useVibration();
 
   const handleColor = (c) => {
     setColor(c); playColorSelect(); vibrate(15);
-    // Switch away from stamp when picking color
-    if (brushType === 'stamp') setBrushType('crayon');
+    if (brushType === 'stamp' || brushType === 'fill' || brushType === 'eraser') setBrushType('crayon');
   };
 
   const handleBrush = (id) => {
@@ -157,9 +109,16 @@ export const Toolbar = ({
     vibrate(next ? [20, 10, 20] : 15);
   };
 
-  const handlePage = (p) => {
-    setColoringPage(coloringPage?.id === p.id ? null : p);
+  const handlePageRequest = (p) => {
+    // If canvas might have content (no way to know for sure), show confirm
+    setConfirmPage(p);
     setShowPages(false);
+  };
+
+  const handlePageConfirm = () => {
+    if (!confirmPage) return;
+    setColoringPage(coloringPage?.id === confirmPage.id ? null : confirmPage);
+    setConfirmPage(null);
     playPageSelect();
     vibrate(25);
   };
@@ -170,21 +129,44 @@ export const Toolbar = ({
     vibrate(20);
   };
 
-  return (
-    <div className="flex flex-col h-full bg-gradient-to-b from-pink-50 to-purple-50 border-r-4 border-pink-200 px-2 py-2 gap-1.5 overflow-y-auto select-none"
-      style={{ width: 88 }}>
+  const handleClear = () => {
+    onClear();
+    playClear();
+    vibrate([50, 30, 80]);
+  };
 
+  const handleHome = () => {
+    onHome();
+    playHome();
+    vibrate(20);
+  };
+
+  return (
+    <div
+      className="flex flex-col h-full bg-gradient-to-b from-pink-50 to-purple-50 border-r-4 border-pink-200 px-2 py-2 gap-1.5 overflow-y-auto select-none"
+      style={{ width: 88 }}
+    >
       {/* App icon */}
-      <motion.div className="text-3xl text-center leading-none mb-0.5"
+      <motion.div
+        className="text-2xl text-center leading-none"
         animate={{ rotate: [0, -8, 8, 0] }}
-        transition={{ repeat: Infinity, duration: 3, repeatDelay: 2 }}>
+        transition={{ repeat: Infinity, duration: 3, repeatDelay: 2 }}
+      >
         🎨
       </motion.div>
+
+      {/* Home + Gallery row */}
+      <div className="grid grid-cols-2 gap-1">
+        <ToolBtn emoji="🏠" label="홈" onClick={handleHome} />
+        <ToolBtn emoji="🖼️" label="갤러리" onClick={onGallery} />
+      </div>
+
+      <div className="border-t-2 border-pink-200 my-0.5" />
 
       {/* Color palette */}
       <div className="grid grid-cols-2 gap-1 justify-items-center">
         {COLORS.map(c => (
-          <ColorSwatch key={c} c={c} selected={color === c} onSelect={handleColor} />
+          <ColorSwatch key={c} c={c} selected={color === c && brushType !== 'eraser'} onSelect={handleColor} />
         ))}
       </div>
 
@@ -199,7 +181,7 @@ export const Toolbar = ({
         ))}
       </div>
 
-      {/* Stamp picker — shown when stamp mode active */}
+      {/* Stamp picker */}
       <AnimatePresence>
         {brushType === 'stamp' && (
           <motion.div
@@ -229,14 +211,34 @@ export const Toolbar = ({
 
       <div className="border-t-2 border-pink-200 my-0.5" />
 
+      {/* Brush size */}
+      <p className="text-[9px] font-black text-pink-400 text-center">크기</p>
+      <div className="grid grid-cols-4 gap-0.5">
+        {SIZES.map(s => (
+          <motion.button
+            key={s}
+            className={`text-[10px] font-black rounded-xl py-1 border-2
+              ${brushSize === s ? 'border-pink-400 bg-pink-100 text-pink-600' : 'border-gray-200 bg-white/60 text-gray-500'}`}
+            whileTap={{ scale: 0.85 }}
+            onClick={() => { setBrushSize(s); vibrate(10); }}
+          >
+            {s}
+          </motion.button>
+        ))}
+      </div>
+
+      <div className="border-t-2 border-pink-200 my-0.5" />
+
       {/* Mirror mode */}
       <ToolBtn emoji="🪞" label="거울" active={mirrorMode} onClick={handleMirror}>
-        <motion.span className="text-xl leading-none"
+        <motion.span
+          className="text-xl leading-none"
           animate={mirrorMode ? { scale: [1, 1.2, 1] } : {}}
-          transition={{ repeat: Infinity, duration: 1.2 }}>🪞</motion.span>
+          transition={{ repeat: Infinity, duration: 1.2 }}
+        >🪞</motion.span>
       </ToolBtn>
 
-      {/* Coloring page selector — inline expansion (no popup, avoids overflow-x clipping on mobile) */}
+      {/* Coloring page selector */}
       <ToolBtn emoji="📖" label="색칠판" active={!!coloringPage || showPages}
         onClick={() => setShowPages(v => !v)} />
 
@@ -250,7 +252,6 @@ export const Toolbar = ({
           >
             <p className="text-[9px] font-black text-pink-400 text-center mt-0.5">밑그림</p>
             <div className="flex flex-col gap-1 mt-1">
-              {/* No outline */}
               <motion.button
                 className={`flex items-center gap-1.5 rounded-xl px-2 py-1.5 border-2 w-full
                   ${!coloringPage ? 'border-pink-400 bg-pink-50' : 'border-gray-200 bg-white/60'}`}
@@ -266,7 +267,7 @@ export const Toolbar = ({
                   className={`flex items-center gap-1.5 rounded-xl px-2 py-1.5 border-2 w-full
                     ${coloringPage?.id === p.id ? 'border-pink-400 bg-pink-50' : 'border-gray-200 bg-white/60'}`}
                   whileTap={{ scale: 0.93 }}
-                  onClick={() => handlePage(p)}
+                  onClick={() => handlePageRequest(p)}
                 >
                   <span className="text-lg leading-none">{p.emoji}</span>
                   <span className="text-[10px] font-bold text-gray-600">{p.label}</span>
@@ -277,7 +278,39 @@ export const Toolbar = ({
         )}
       </AnimatePresence>
 
+      {/* Background color */}
+      <ToolBtn emoji="🎨" label="배경색" active={showBgColors} onClick={() => setShowBgColors(v => !v)} />
+
+      <AnimatePresence>
+        {showBgColors && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden"
+          >
+            <p className="text-[9px] font-black text-pink-400 text-center mt-0.5">배경</p>
+            <div className="grid grid-cols-4 gap-1 mt-1 justify-items-center">
+              {BG_COLORS.map(c => (
+                <ColorSwatch key={c} c={c} size={18} selected={bgColor === c}
+                  onSelect={(col) => { setBgColor(col); vibrate(10); }} />
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="flex-1" />
+
+      {/* Undo */}
+      <motion.button
+        className="flex flex-col items-center justify-center rounded-2xl p-1.5 gap-0.5 w-full bg-blue-50 shadow ring-2 ring-blue-200"
+        whileTap={{ scale: 0.85 }} whileHover={{ scale: 1.08 }}
+        onClick={onUndo}
+      >
+        <span className="text-xl leading-none">↩️</span>
+        <span className="text-[9px] font-black text-blue-500">되돌리기</span>
+      </motion.button>
 
       {/* Save */}
       <motion.button
@@ -285,14 +318,63 @@ export const Toolbar = ({
         whileTap={{ scale: 0.85 }} whileHover={{ scale: 1.08 }}
         onClick={onSave}
       >
-        <motion.span className="text-xl leading-none"
+        <motion.span
+          className="text-xl leading-none"
           animate={{ scale: [1, 1.15, 1] }}
-          transition={{ repeat: Infinity, duration: 1.8 }}>📸</motion.span>
+          transition={{ repeat: Infinity, duration: 1.8 }}
+        >📸</motion.span>
         <span className="text-[9px] font-black text-yellow-700">저장</span>
       </motion.button>
 
-      {/* Clear (long press) */}
-      <ClearBtn onClear={onClear} />
+      {/* Clear — single press */}
+      <motion.button
+        className="flex flex-col items-center justify-center rounded-2xl p-1.5 gap-0.5 w-full bg-red-50 shadow ring-2 ring-red-200"
+        whileTap={{ scale: 0.85 }} whileHover={{ scale: 1.08 }}
+        onClick={handleClear}
+      >
+        <span className="text-xl leading-none">🗑️</span>
+        <span className="text-[9px] font-black text-red-400">초기화</span>
+      </motion.button>
+
+      {/* Coloring page change confirmation dialog */}
+      <AnimatePresence>
+        {confirmPage && (
+          <motion.div
+            className="fixed inset-0 z-[250] flex items-center justify-center"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <div className="absolute inset-0 bg-black/40" onClick={() => setConfirmPage(null)} />
+            <motion.div
+              className="relative bg-white rounded-3xl p-6 shadow-2xl border-4 border-pink-200 flex flex-col items-center gap-4 mx-4"
+              style={{ maxWidth: 320 }}
+              initial={{ scale: 0.85, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.85, y: 20 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 24 }}
+            >
+              <span className="text-4xl">{confirmPage.emoji}</span>
+              <p className="text-base font-black text-gray-700 text-center">
+                "{confirmPage.label}" 밑그림으로 바꿀까요?<br />
+                <span className="text-sm font-bold text-red-400">지금 그림이 지워져요!</span>
+              </p>
+              <div className="flex gap-3 w-full">
+                <motion.button
+                  className="flex-1 py-2 rounded-2xl bg-gray-100 text-gray-600 font-black text-sm border-2 border-gray-200"
+                  whileTap={{ scale: 0.92 }}
+                  onClick={() => setConfirmPage(null)}
+                >취소</motion.button>
+                <motion.button
+                  className="flex-1 py-2 rounded-2xl bg-pink-400 text-white font-black text-sm border-2 border-pink-500"
+                  whileTap={{ scale: 0.92 }}
+                  onClick={handlePageConfirm}
+                >바꿔요!</motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
