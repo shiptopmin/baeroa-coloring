@@ -29,10 +29,11 @@ const BRUSHES = [
 const SIZES = ['S', 'M', 'L', 'XL'];
 
 const STAMPS = [
-  // 💩 최애 구역
-  { id: 'poop1',   emoji: '💩' },
-  { id: 'poop2',   emoji: '💩' },
-  { id: 'poop3',   emoji: '💩' },
+  // 💩 최애 구역 (똥 패밀리)
+  { id: 'poop',    emoji: '💩' },
+  { id: 'toilet',  emoji: '🚽' },
+  { id: 'tp',      emoji: '🧻' },
+  { id: 'fart',    emoji: '💨' },
   // 동물
   { id: 'dog',     emoji: '🐶' },
   { id: 'cat',     emoji: '🐱' },
