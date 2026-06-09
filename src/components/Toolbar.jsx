@@ -29,16 +29,40 @@ const BRUSHES = [
 const SIZES = ['S', 'M', 'L', 'XL'];
 
 const STAMPS = [
-  { id: 'star',    emoji: '⭐' },
-  { id: 'heart',   emoji: '❤️' },
+  // 💩 최애 구역
+  { id: 'poop1',   emoji: '💩' },
+  { id: 'poop2',   emoji: '💩' },
+  { id: 'poop3',   emoji: '💩' },
+  // 동물
   { id: 'dog',     emoji: '🐶' },
   { id: 'cat',     emoji: '🐱' },
-  { id: 'poop',    emoji: '💩' },
-  { id: 'flower',  emoji: '🌸' },
-  { id: 'rainbow', emoji: '🌈' },
-  { id: 'candy',   emoji: '🍭' },
   { id: 'dino',    emoji: '🦕' },
   { id: 'unicorn', emoji: '🦄' },
+  { id: 'panda',   emoji: '🐼' },
+  { id: 'frog',    emoji: '🐸' },
+  { id: 'chick',   emoji: '🐣' },
+  { id: 'penguin', emoji: '🐧' },
+  { id: 'fox',     emoji: '🦊' },
+  { id: 'duck',    emoji: '🦆' },
+  { id: 'trex',    emoji: '🦖' },
+  { id: 'turtle',  emoji: '🐢' },
+  { id: 'rabbit',  emoji: '🐰' },
+  // 음식
+  { id: 'icecream',emoji: '🍦' },
+  { id: 'candy',   emoji: '🍭' },
+  { id: 'donut',   emoji: '🍩' },
+  { id: 'cake',    emoji: '🎂' },
+  { id: 'pizza',   emoji: '🍕' },
+  { id: 'berry',   emoji: '🍓' },
+  // 기타
+  { id: 'star',    emoji: '⭐' },
+  { id: 'heart',   emoji: '❤️' },
+  { id: 'flower',  emoji: '🌸' },
+  { id: 'rainbow', emoji: '🌈' },
+  { id: 'balloon', emoji: '🎈' },
+  { id: 'crown',   emoji: '👑' },
+  { id: 'rocket',  emoji: '🚀' },
+  { id: 'sparkle', emoji: '✨' },
 ];
 
 // ─── sub-components ───────────────────────────────────────────────────────────
